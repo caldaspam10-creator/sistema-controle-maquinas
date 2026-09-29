@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WM — Controle de Máquinas</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f6f8;color:#18212b}
+header{background:#111820;color:#fff;padding:16px 22px;display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:28px;font-weight:900;letter-spacing:2px}.sub{opacity:.7;font-size:12px}
+nav{display:flex;gap:7px;flex-wrap:wrap;padding:12px;background:#fff;border-bottom:1px solid #ddd;position:sticky;top:0;z-index:5}
+nav button{border:0;background:#eef1f4;padding:10px 13px;border-radius:9px;font-weight:700;cursor:pointer}
+nav button.active{background:#1d6cff;color:#fff}
+main{max-width:1200px;margin:20px auto;padding:0 15px}.page{display:none}.page.active{display:block}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px}
+.card,.panel{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px #0001;margin-bottom:16px}
+.num{font-size:30px;font-weight:900;margin-top:6px}.muted{color:#697586;font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+label{display:block;font-size:12px;font-weight:700;margin:9px 0 5px}
+input,select,textarea{width:100%;padding:11px;border:1px solid #d5dbe1;border-radius:8px;background:#fff;font-size:14px}
+textarea{min-height:75px}
+button.primary{background:#1d6cff;color:#fff;border:0;padding:11px 15px;border-radius:9px;font-weight:800;cursor:pointer;margin-top:13px}
+button.secondary{background:#eef1f4;border:0;padding:11px 15px;border-radius:9px;font-weight:800;cursor:pointer;margin-top:13px}
+button.danger{background:#e5484d;color:#fff;border:0;padding:7px 10px;border-radius:7px;cursor:pointer}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:10px;border-bottom:1px solid #edf0f2}th{color:#687385;font-size:11px;text-transform:uppercase}
+.badge{padding:5px 8px;border-radius:20px;font-size:11px;font-weight:800}.ok{background:#dcfce7;color:#166534}.busy{background:#fee2e2;color:#991b1b}
+.empty{padding:20px;text-align:center;color:#777}
+.qrgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.qritem{text-align:center;border:1px solid #e3e7eb;border-radius:12px;padding:15px;background:#fff}
+#reader{max-width:420px;margin:15px auto}
+@media(max-width:600px){header{padding:13px 15px}.logo{font-size:23px}nav{position:static}main{margin-top:12px}.cards{grid-template-columns:1fr 1fr}.card{padding:14px}.num{font-size:25px}table{font-size:12px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<link rel="manifest" href="./manifest.webmanifest"><meta name="theme-color" content="#111820"></head>
+<body>
+<header><div><div class="logo">WM</div><div class="sub">CONTROLE DE MÁQUINAS</div></div><div id="clock"></div></header>
+<nav>
+<button data-page="dashboard">Dashboard</button><button data-page="machines">Máquinas</button><button data-page="operators">Operadores</button>
+<button data-page="exit">Registrar Saída</button><button data-page="return">Registrar Retorno</button><button data-page="history">Histórico</button><button data-page="qr">QR Codes</button>
+</nav>
+<main>
+<section id="dashboard" class="page active"><h2>Visão geral</h2><div class="cards">
+<div class="card">Máquinas cadastradas<div class="num" id="cMachines">0</div></div>
+<div class="card">Disponíveis<div class="num" id="cAvailable">0</div></div>
+<div class="card">Em uso<div class="num" id="cBusy">0</div></div>
+<div class="card">Saídas abertas<div class="num" id="cOpen">0</div></div>
+</div><div class="panel"><h2>Movimentações recentes</h2><div id="recent"></div></div></section>
+
+<section id="machines" class="page">
+<div class="panel"><h2>Cadastro de máquina</h2><div class="grid">
+<div><label>Nome da máquina</label><input id="mName" placeholder="Ex.: Retroescavadeira 01"></div>
+<div><label>Patrimônio</label><input id="mPat" placeholder="Ex.: WM-001"></div>
+<div><label>Marca / modelo</label><input id="mModel"></div>
+<div><label>Horímetro atual</label><input id="mHour" type="number" min="0" value="0"></div>
+</div><button class="primary" onclick="addMachine()">Cadastrar máquina</button></div>
+<div class="panel"><h2>Máquinas cadastradas</h2><div id="machineTable"></div></div>
+</section>
+
+<section id="operators" class="page">
+<div class="panel"><h2>Cadastro de operador</h2><div class="grid"><div><label>Nome</label><input id="opName"></div><div><label>Matrícula</label><input id="opMat"></div></div><button class="primary" onclick="addOperator()">Cadastrar operador</button></div>
+<div class="panel"><h2>Operadores</h2><div id="operatorTable"></div></div>
+</section>
+
+<section id="exit" class="page">
+<div class="panel"><h2>Registrar saída</h2><div class="grid">
+<div><label>Máquina</label><select id="eMachine"></select></div><div><label>Operador</label><select id="eOperator"></select></div>
+<div><label>Destino / obra</label><input id="eDest"></div><div><label>Horímetro na saída</label><input id="eHour" type="number" min="0"></div>
+<div><label>Combustível (%)</label><input id="eFuel" type="number" min="0" max="100"></div><div><label>Data/hora</label><input id="eDate" type="datetime-local"></div>
+</div><label>Observações</label><textarea id="eObs"></textarea><button class="primary" onclick="registerExit()">CONFIRMAR SAÍDA</button></div>
+</section>
+
+<section id="return" class="page"><div class="panel"><h2>Registrar retorno</h2><div id="returnList"></div></div></section>
+
+<section id="history" class="page"><div class="panel"><h2>Histórico de movimentações</h2><div id="historyTable"></div></div></section>
+
+<section id="qr" class="page">
+<div class="panel"><h2>📷 BIPAR / IDENTIFICAR MÁQUINA</h2>
+<p class="muted">No computador, use um leitor USB. No celular, use a câmera.</p>
+<label>Código da máquina</label><input id="scanInput" placeholder="Bipe o QR Code aqui e pressione Enter" onkeydown="scanKey(event)">
+<button class="primary" onclick="startMobileScanner()">📷 ESCANEAR COM A CÂMERA</button>
+<div id="reader"></div><div id="scanResult"></div></div>
+<div class="panel"><h2>🏷️ QR Codes das máquinas</h2><button class="primary" onclick="printQRCodes()">IMPRIMIR QR CODES</button><div id="qrGrid" class="qrgrid" style="margin-top:18px"></div></div>
+</section>
+</main>
+
+<script>
+const K='wm_machine_control_v2';
+let db=JSON.parse(localStorage.getItem(K)||'{"machines":[],"operators":[],"moves":[]}');
+
+function save(){localStorage.setItem(K,JSON.stringify(db));render()}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function fmt(d){return d?new Date(d).toLocaleString('pt-BR'):''}
+function machineCode(m){return 'WM-'+(m.pat||m.id.slice(0,8)).replace(/[^A-Za-z0-9]/g,'').toUpperCase()}
+function go(page){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));document.getElementById(page).classList.add('active');document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===page));render()}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.page));
+
+function addMachine(){
+ let n=mName.value.trim();if(!n)return alert('Informe o nome da máquina.');
+ let pat=mPat.value.trim();if(!pat)return alert('Informe o patrimônio.');
+ if(db.machines.some(x=>x.pat.toUpperCase()===pat.toUpperCase()))return alert('Esse patrimônio já está cadastrado.');
+ db.machines.push({id:crypto.randomUUID(),name:n,pat,model:mModel.value.trim(),hour:+mHour.value||0,status:'DISPONÍVEL'});
+ mName.value=mPat.value=mModel.value='';mHour.value=0;save();alert('Máquina cadastrada!');
+}
+function addOperator(){
+ let n=opName.value.trim();if(!n)return alert('Informe o nome.');
+ db.operators.push({id:crypto.randomUUID(),name:n,mat:opMat.value.trim()});opName.value=opMat.value='';save()
+}
+function registerExit(){
+ let mach=db.machines.find(x=>x.id===eMachine.value),op=db.operators.find(x=>x.id===eOperator.value);
+ if(!mach||!op)return alert('Cadastre máquina e operador primeiro.');
+ if(mach.status!=='DISPONÍVEL')return alert('Esta máquina não está disponível.');
+ let h=+eHour.value||mach.hour;if(h<mach.hour)return alert('O horímetro não pode ser menor que o atual.');
+ db.moves.push({id:crypto.randomUUID(),machineId:mach.id,operatorId:op.id,dest:eDest.value.trim(),outHour:h,fuelOut:+eFuel.value||0,dateOut:eDate.value||new Date().toISOString(),obs:eObs.value.trim(),status:'EM USO'});
+ mach.hour=h;mach.status='EM USO';eDest.value=eObs.value='';save();alert('Saída registrada com sucesso!');go('dashboard')
+}
+function registerReturn(id){
+ let mv=db.moves.find(x=>x.id===id),mach=db.machines.find(x=>x.id===mv.machineId);
+ let h=+prompt('Horímetro no retorno:',mach.hour);if(!Number.isFinite(h)||h<mv.outHour)return alert('Horímetro inválido.');
+ let fuel=+prompt('Combustível no retorno (%)',mv.fuelOut);if(!Number.isFinite(fuel))return;
+ mv.returnHour=h;mv.fuelIn=fuel;mv.dateIn=new Date().toISOString();mv.status='RETORNADA';mv.hours=h-mv.outHour;mach.hour=h;mach.status='DISPONÍVEL';save()
+}
+function removeMachine(id){if(db.moves.some(m=>m.machineId===id&&m.status==='EM USO'))return alert('Máquina em uso.');if(confirm('Excluir esta máquina?')){db.machines=db.machines.filter(x=>x.id!==id);save()}}
+
+function scanKey(ev){
+ if(ev.key!=='Enter')return;ev.preventDefault();
+ let code=scanInput.value.trim().toUpperCase();
+ let m=db.machines.find(x=>machineCode(x)===code||x.pat.toUpperCase()===code||x.id.toUpperCase()===code);
+ if(!m){scanResult.innerHTML='<div class="panel">❌ Máquina não encontrada.</div>';return}
+ scanInput.value='';
+ if(m.status==='DISPONÍVEL'){
+   go('exit');setTimeout(()=>{eMachine.value=m.id;eHour.value=m.hour},50);
+ }else{
+   go('return');
+   setTimeout(()=>{let mv=db.moves.find(x=>x.machineId===m.id&&x.status==='EM USO');if(mv)alert('Máquina '+m.name+' está em uso. Selecione o retorno na lista.')},50);
+ }
+}
+let scanner=null;
+async function startMobileScanner(){
+ if(typeof Html5Qrcode==='undefined')return alert('Não foi possível carregar o leitor. Conecte o celular à internet e tente novamente.');
+ try{
+   if(scanner){try{await scanner.stop()}catch(e){}}
+   scanner=new Html5Qrcode('reader');
+   await scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:250}},async text=>{
+     scanInput.value=text;
+     if(scanner){try{await scanner.stop()}catch(e){}}
+     scanKey({key:'Enter',preventDefault(){}});
+   },()=>{});
+ }catch(e){alert('Permita o acesso à câmera no navegador. Se o arquivo estiver aberto localmente, publique o sistema em HTTPS para usar a câmera.')}
+}
+function printQRCodes(){
+ if(!db.machines.length)return alert('Cadastre pelo menos uma máquina.');
+ let w=window.open('','_blank');
+ w.document.write('<!doctype html><html><head><title>WM — QR Codes</title><style>body{font-family:Arial;margin:25px}.sheet{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.item{text-align:center;border:1px solid #ddd;padding:14px;border-radius:10px}.qr{height:180px;display:flex;align-items:center;justify-content:center}@media print{button{display:none}}@media(max-width:700px){.sheet{grid-template-columns:repeat(2,1fr)}}</style><link rel="manifest" href="./manifest.webmanifest"><meta name="theme-color" content="#111820"></head><body><h1>WM — QR Codes das Máquinas</h1><div class="sheet" id="s"></div><script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script><script>if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js").catch(()=>{});}<\/script></body></html>');
+ w.document.close();
+ setTimeout(()=>{
+   db.machines.forEach(m=>{
+     let c=w.document.createElement('div');c.className='item';
+     c.innerHTML='<h3>'+esc(m.name)+'</h3><div class="qr"></div><b>'+esc(m.pat)+'</b><br>'+machineCode(m);
+     w.document.getElementById('s').appendChild(c);
+     new w.QRCode(c.querySelector('.qr'),{text:machineCode(m),width:180,height:180});
+   });
+ },500);
+}
+
+function render(){
+ cMachines.textContent=db.machines.length;
+ cAvailable.textContent=db.machines.filter(x=>x.status==='DISPONÍVEL').length;
+ cBusy.textContent=db.machines.filter(x=>x.status==='EM USO').length;
+ cOpen.textContent=db.moves.filter(x=>x.status==='EM USO').length;
+ machineTable.innerHTML=db.machines.length?'<table><tr><th>Máquina</th><th>Patrimônio</th><th>Modelo</th><th>Horímetro</th><th>Status</th><th></th></tr>'+db.machines.map(m=>'<tr><td>'+esc(m.name)+'</td><td>'+esc(m.pat)+'</td><td>'+esc(m.model)+'</td><td>'+m.hour+' h</td><td><span class="badge '+(m.status==='DISPONÍVEL'?'ok':'busy')+'">'+m.status+'</span></td><td><button class="danger" onclick="removeMachine(\''+m.id+'\')">Excluir</button></td></tr>').join('')+'</table>':'<div class="empty">Nenhuma máquina cadastrada.</div>';
+ operatorTable.innerHTML=db.operators.length?'<table><tr><th>Nome</th><th>Matrícula</th></tr>'+db.operators.map(o=>'<tr><td>'+esc(o.name)+'</td><td>'+esc(o.mat)+'</td></tr>').join('')+'</table>':'<div class="empty">Nenhum operador cadastrado.</div>';
+ eMachine.innerHTML='<option value="">Selecione</option>'+db.machines.filter(m=>m.status==='DISPONÍVEL').map(m=>'<option value="'+m.id+'">'+esc(m.name)+' — '+esc(m.pat)+'</option>').join('');
+ eOperator.innerHTML='<option value="">Selecione</option>'+db.operators.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');
+ let open=db.moves.filter(m=>m.status==='EM USO');
+ returnList.innerHTML=open.length?'<table><tr><th>Máquina</th><th>Operador</th><th>Destino</th><th>Saída</th><th>Horímetro</th><th></th></tr>'+open.map(m=>{let a=db.machines.find(x=>x.id===m.machineId),o=db.operators.find(x=>x.id===m.operatorId);return '<tr><td>'+esc(a?.name)+'</td><td>'+esc(o?.name)+'</td><td>'+esc(m.dest)+'</td><td>'+fmt(m.dateOut)+'</td><td>'+m.outHour+' h</td><td><button class="primary" onclick="registerReturn(\''+m.id+'\')">Registrar retorno</button></td></tr>'}).join('')+'</table>':'<div class="empty">Nenhuma máquina em uso.</div>';
+ let rows=[...db.moves].sort((a,b)=>new Date(b.dateOut)-new Date(a.dateOut));
+ historyTable.innerHTML=rows.length?'<table><tr><th>Máquina</th><th>Operador</th><th>Destino</th><th>Saída</th><th>Retorno</th><th>Horas</th><th>Status</th></tr>'+rows.map(m=>{let a=db.machines.find(x=>x.id===m.machineId),o=db.operators.find(x=>x.id===m.operatorId);return '<tr><td>'+esc(a?.name)+'</td><td>'+esc(o?.name)+'</td><td>'+esc(m.dest)+'</td><td>'+fmt(m.dateOut)+'</td><td>'+fmt(m.dateIn)||'—'+'</td><td>'+String(m.hours??'—')+'</td><td><span class="badge '+(m.status==='RETORNADA'?'ok':'busy')+'">'+m.status+'</span></td></tr>'}).join('')+'</table>':'<div class="empty">Nenhuma movimentação registrada.</div>';
+ recent.innerHTML=rows.slice(0,8).map(m=>{let a=db.machines.find(x=>x.id===m.machineId),o=db.operators.find(x=>x.id===m.operatorId);return '<p><b>'+esc(a?.name)+'</b> • '+esc(o?.name)+' • '+esc(m.dest)+' — <span class="badge '+(m.status==='RETORNADA'?'ok':'busy')+'">'+m.status+'</span></p>'}).join('')||'<div class="empty">Sem movimentações.</div>';
+ renderQR();
+}
+function renderQR(){
+ let box=document.getElementById('qrGrid');if(!box)return;
+ box.innerHTML=db.machines.map(m=>'<div class="qritem"><div id="qr-'+m.id+'"></div><b>'+esc(m.name)+'</b><br><span class="muted">'+esc(m.pat)+' • '+machineCode(m)+'</span></div>').join('');
+ db.machines.forEach(m=>{let el=document.getElementById('qr-'+m.id);if(el&&window.QRCode)new QRCode(el,{text:machineCode(m),width:150,height:150})});
+}
+setInterval(()=>clock.textContent=new Date().toLocaleString('pt-BR'),1000);
+eDate.value=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+render();
+</script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js").catch(()=>{});}</script></body></html>
