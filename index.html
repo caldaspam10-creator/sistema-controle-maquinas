@@ -29,17 +29,76 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 .qritem{text-align:center;border:1px solid #e3e7eb;border-radius:12px;padding:15px;background:#fff}
 #reader{max-width:420px;margin:15px auto}
 @media(max-width:600px){header{padding:13px 15px}.logo{font-size:23px}nav{position:static}main{margin-top:12px}.cards{grid-template-columns:1fr 1fr}.card{padding:14px}.num{font-size:25px}table{font-size:12px}}
+
+.auth-wrap{min-height:calc(100vh - 72px);display:flex;align-items:center;justify-content:center;padding:24px;position:relative;z-index:20}
+.auth-card{width:min(430px,100%);background:#fff;border-radius:16px;padding:24px;box-shadow:0 8px 30px #0002;position:relative;z-index:21}
+.auth-card h2{margin-top:0}
+.auth-card input{pointer-events:auto!important;user-select:text!important;position:relative;z-index:22;color:#18212b!important;background:#fff!important}
+.auth-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.auth-msg{margin-top:12px;font-size:13px;color:#991b1b;min-height:18px;white-space:pre-wrap}
+.userbox{display:flex;align-items:center;gap:10px;font-size:12px}
+.userbox button{border:0;background:#eef1f4;padding:8px 10px;border-radius:8px;font-weight:700;cursor:pointer}
+.sync{font-size:11px;opacity:.8}
+.hidden{display:none!important}
+.auth-link{border:0;background:transparent;color:#1d6cff;padding:10px 0;font-weight:700;cursor:pointer;text-decoration:underline}
+.success-msg{color:#166534!important}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-<link rel="manifest" href="./manifest.webmanifest"><meta name="theme-color" content="#111820"></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="manifest" href="./manifest.webmanifest"><meta name="theme-color" content="#111820">
+<script>
+(async()=>{
+  try{
+    if('serviceWorker' in navigator){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      for(const r of regs) await r.unregister();
+    }
+    if('caches' in window){
+      const keys=await caches.keys();
+      await Promise.all(keys.map(k=>caches.delete(k)));
+    }
+  }catch(e){ console.warn('Limpeza de cache:',e); }
+})();
+</script>
+
+</head>
 <body>
-<header><div><div class="logo">WM</div><div class="sub">CONTROLE DE MÁQUINAS</div></div><div id="clock"></div></header>
-<nav>
+<header>
+<div><div class="logo">WM</div><div class="sub">CONTROLE DE MÁQUINAS • NUVEM V7</div></div>
+<div class="userbox"><div><div id="clock"></div><div id="syncStatus" class="sync"></div></div><span id="userEmail"></span><button id="logoutBtn" class="hidden" type="button">Sair</button></div>
+</header>
+<section id="authScreen" class="auth-wrap">
+  <div class="auth-card">
+    <h2>Entrar no sistema</h2>
+    <p class="muted">Use a conta criada no Supabase. A mesma conta pode ser usada no notebook e no celular.</p>
+    <label for="loginEmail">E-mail</label>
+    <input id="loginEmail" type="email" autocomplete="username" inputmode="email" placeholder="seuemail@exemplo.com">
+    <label for="loginPassword">Senha</label>
+    <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Sua senha">
+    <div class="auth-actions"><button id="loginBtn" class="primary" type="button">Entrar</button><button id="forgotPasswordBtn" class="auth-link" type="button">Esqueci minha senha</button></div>
+    <div id="authMsg" class="auth-msg"></div>
+  </div>
+</section>
+
+<section id="resetScreen" class="auth-wrap hidden">
+  <div class="auth-card">
+    <h2>Criar nova senha</h2>
+    <p class="muted">Digite a nova senha da sua conta. Depois você poderá entrar com ela no notebook e no celular.</p>
+    <label for="newPassword">Nova senha</label>
+    <input id="newPassword" type="password" autocomplete="new-password" placeholder="Mínimo de 6 caracteres">
+    <label for="confirmPassword">Confirmar nova senha</label>
+    <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="Digite a senha novamente">
+    <div class="auth-actions"><button id="saveNewPasswordBtn" class="primary" type="button">Salvar nova senha</button></div>
+    <div id="resetMsg" class="auth-msg"></div>
+  </div>
+</section>
+<nav id="appNav" class="hidden">
 <button data-page="dashboard">Dashboard</button><button data-page="machines">Máquinas</button><button data-page="operators">Operadores</button>
 <button data-page="exit">Registrar Saída</button><button data-page="return">Registrar Retorno</button><button data-page="history">Histórico</button><button data-page="qr">QR Codes</button>
 </nav>
-<main>
+<main id="appMain" class="hidden">
 <section id="dashboard" class="page active"><h2>Visão geral</h2><div class="cards">
 <div class="card">Máquinas cadastradas<div class="num" id="cMachines">0</div></div>
 <div class="card">Disponíveis<div class="num" id="cAvailable">0</div></div>
@@ -86,9 +145,180 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 
 <script>
 const K='wm_machine_control_v2';
+
+const SUPABASE_URL='https://mjcqjjjqhgyfvogldrql.supabase.co';
+const SUPABASE_ANON_KEY='sb_publishable_e7mDyPX1uw9FSr2oOcVAfg_CgUhA7pM';
+
+const supa=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{
+  auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
+});
+let currentUser=null;
+let recoveryMode=(new URLSearchParams(location.hash.replace(/^#/,''))).get('type')==='recovery'||(new URLSearchParams(location.search)).get('type')==='recovery';
 let db=JSON.parse(localStorage.getItem(K)||'{"machines":[],"operators":[],"moves":[]}');
 
-function save(){localStorage.setItem(K,JSON.stringify(db));render()}
+function byId(id){return document.getElementById(id)}
+function setSync(text){const el=byId('syncStatus');if(el)el.textContent=text||''}
+
+function showLoggedOut(message=''){
+  currentUser=null;
+  byId('resetScreen')?.classList.add('hidden');
+  byId('authScreen').classList.remove('hidden');
+  byId('appNav').classList.add('hidden');
+  byId('appMain').classList.add('hidden');
+  byId('logoutBtn').classList.add('hidden');
+  byId('userEmail').textContent='';
+  byId('authMsg').classList.remove('success-msg');
+  byId('authMsg').textContent=message;
+  setSync('');
+  setTimeout(()=>byId('loginEmail')?.focus(),50);
+}
+
+function showLoggedIn(user){
+  currentUser=user;
+  byId('resetScreen').classList.add('hidden');
+  byId('authScreen').classList.add('hidden');
+  byId('appNav').classList.remove('hidden');
+  byId('appMain').classList.remove('hidden');
+  byId('logoutBtn').classList.remove('hidden');
+  byId('userEmail').textContent=user?.email||'';
+  byId('authMsg').textContent='';
+}
+
+function showPasswordReset(user){
+  recoveryMode=true;
+  currentUser=user||currentUser;
+  byId('authScreen').classList.add('hidden');
+  byId('appNav').classList.add('hidden');
+  byId('appMain').classList.add('hidden');
+  byId('logoutBtn').classList.add('hidden');
+  byId('resetScreen').classList.remove('hidden');
+  byId('userEmail').textContent=currentUser?.email||'';
+  byId('resetMsg').textContent='';
+  setTimeout(()=>byId('newPassword')?.focus(),50);
+}
+
+function cleanAuthUrl(){
+  try{history.replaceState({},document.title,location.pathname);}catch(e){}
+}
+
+async function requestPasswordReset(){
+  const email=byId('loginEmail').value.trim();
+  if(!email){
+    byId('authMsg').textContent='Digite seu e-mail primeiro.';
+    byId('loginEmail').focus();
+    return;
+  }
+  byId('authMsg').classList.remove('success-msg');
+  byId('authMsg').textContent='Enviando e-mail de recuperação...';
+  const redirectTo=window.location.origin+window.location.pathname;
+  const {error}=await supa.auth.resetPasswordForEmail(email,{redirectTo});
+  if(error){
+    byId('authMsg').textContent='Não foi possível enviar o e-mail: '+error.message;
+    return;
+  }
+  byId('authMsg').classList.add('success-msg');
+  byId('authMsg').textContent='E-mail enviado. Abra a mensagem mais recente e toque em “Redefinir senha”.';
+}
+
+async function saveNewPassword(){
+  const p1=byId('newPassword').value;
+  const p2=byId('confirmPassword').value;
+  byId('resetMsg').classList.remove('success-msg');
+  if(p1.length<6){
+    byId('resetMsg').textContent='A senha precisa ter pelo menos 6 caracteres.';
+    return;
+  }
+  if(p1!==p2){
+    byId('resetMsg').textContent='As duas senhas estão diferentes.';
+    return;
+  }
+  byId('resetMsg').textContent='Salvando nova senha...';
+  const {error}=await supa.auth.updateUser({password:p1});
+  if(error){
+    byId('resetMsg').textContent='Não foi possível alterar a senha: '+error.message;
+    return;
+  }
+  byId('resetMsg').classList.add('success-msg');
+  byId('resetMsg').textContent='Senha alterada com sucesso. Você já pode entrar com a nova senha.';
+  byId('newPassword').value='';
+  byId('confirmPassword').value='';
+  recoveryMode=false;
+  cleanAuthUrl();
+  await supa.auth.signOut();
+  byId('resetScreen').classList.add('hidden');
+  showLoggedOut('Senha alterada com sucesso. Entre com a nova senha.');
+  byId('authMsg').classList.add('success-msg');
+}
+
+async function login(){
+  const email=byId('loginEmail').value.trim();
+  const password=byId('loginPassword').value;
+  if(!email||!password){
+    byId('authMsg').textContent='Informe e-mail e senha.';
+    return;
+  }
+  byId('authMsg').textContent='Entrando...';
+  const {data,error}=await supa.auth.signInWithPassword({email,password});
+  if(error){
+    byId('authMsg').textContent='Não foi possível entrar: '+error.message+' | Projeto: '+SUPABASE_URL;
+    return;
+  }
+  showLoggedIn(data.user);
+  await loadCloudState();
+}
+
+async function logout(){
+  await supa.auth.signOut();
+  showLoggedOut();
+}
+
+async function loadCloudState(){
+  if(!currentUser)return;
+  setSync('Sincronizando...');
+  const {data,error}=await supa.from('wm_state').select('data').eq('user_id',currentUser.id).maybeSingle();
+  if(error){
+    setSync('Erro de sincronização');
+    byId('authMsg').textContent='';
+    alert('Não foi possível carregar os dados da nuvem: '+error.message);
+    return;
+  }
+  if(data?.data){
+    db=data.data;
+    localStorage.setItem(K,JSON.stringify(db));
+  }else{
+    const {error:upErr}=await supa.from('wm_state').upsert({
+      user_id:currentUser.id,
+      data:db,
+      updated_at:new Date().toISOString()
+    });
+    if(upErr){
+      setSync('Erro de sincronização');
+      alert('Não foi possível criar os dados da conta na nuvem: '+upErr.message);
+      return;
+    }
+  }
+  render();
+  setSync('Sincronizado');
+}
+
+async function save(){
+  localStorage.setItem(K,JSON.stringify(db));
+  render();
+  if(!currentUser)return;
+  setSync('Salvando...');
+  const {error}=await supa.from('wm_state').upsert({
+    user_id:currentUser.id,
+    data:db,
+    updated_at:new Date().toISOString()
+  });
+  if(error){
+    setSync('Erro ao salvar');
+    console.error(error);
+    alert('Os dados ficaram salvos neste aparelho, mas houve erro ao enviar para a nuvem: '+error.message);
+  }else{
+    setSync('Sincronizado');
+  }
+}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function fmt(d){return d?new Date(d).toLocaleString('pt-BR'):''}
 function machineCode(m){return 'WM-'+(m.pat||m.id.slice(0,8)).replace(/[^A-Za-z0-9]/g,'').toUpperCase()}
@@ -184,8 +414,63 @@ function renderQR(){
  box.innerHTML=db.machines.map(m=>'<div class="qritem"><div id="qr-'+m.id+'"></div><b>'+esc(m.name)+'</b><br><span class="muted">'+esc(m.pat)+' • '+machineCode(m)+'</span></div>').join('');
  db.machines.forEach(m=>{let el=document.getElementById('qr-'+m.id);if(el&&window.QRCode)new QRCode(el,{text:machineCode(m),width:150,height:150})});
 }
-setInterval(()=>clock.textContent=new Date().toLocaleString('pt-BR'),1000);
+setInterval(()=>byId('clock').textContent=new Date().toLocaleString('pt-BR'),1000);
 eDate.value=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
 render();
+
+byId('loginBtn').addEventListener('click',login);
+byId('forgotPasswordBtn').addEventListener('click',requestPasswordReset);
+byId('saveNewPasswordBtn').addEventListener('click',saveNewPassword);
+byId('logoutBtn').addEventListener('click',logout);
+byId('loginEmail').addEventListener('keydown',e=>{if(e.key==='Enter')byId('loginPassword').focus()});
+byId('loginPassword').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+byId('newPassword').addEventListener('keydown',e=>{if(e.key==='Enter')byId('confirmPassword').focus()});
+byId('confirmPassword').addEventListener('keydown',e=>{if(e.key==='Enter')saveNewPassword()});
+
+supa.auth.onAuthStateChange((event,session)=>{
+  if(event==='PASSWORD_RECOVERY'){
+    recoveryMode=true;
+    showPasswordReset(session?.user);
+    return;
+  }
+  if(event==='SIGNED_OUT'){
+    if(!recoveryMode)showLoggedOut();
+  }
+});
+
+async function initAuth(){
+  try{
+    const {data:{session},error}=await supa.auth.getSession();
+    if(error)throw error;
+    if(session?.user){
+      if(recoveryMode){
+        showPasswordReset(session.user);
+      }else{
+        showLoggedIn(session.user);
+        await loadCloudState();
+      }
+    }else if(recoveryMode){
+      byId('authScreen').classList.add('hidden');
+      byId('resetScreen').classList.remove('hidden');
+      byId('resetMsg').textContent='Validando o link de recuperação...';
+      setTimeout(async()=>{
+        const {data:{session:later}}=await supa.auth.getSession();
+        if(later?.user)showPasswordReset(later.user);
+        else{
+          recoveryMode=false;
+          cleanAuthUrl();
+          showLoggedOut('O link de recuperação expirou ou é inválido. Clique em “Esqueci minha senha” para receber um novo.');
+        }
+      },1200);
+    }else{
+      showLoggedOut();
+    }
+  }catch(err){
+    recoveryMode=false;
+    showLoggedOut('Erro ao iniciar o login: '+(err?.message||err));
+  }
+}
+
+initAuth();
 </script>
-<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js").catch(()=>{});}</script></body></html>
+</body></html>
