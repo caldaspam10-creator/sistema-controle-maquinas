@@ -64,7 +64,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 </head>
 <body>
 <header>
-<div><div class="logo">WM</div><div class="sub">CONTROLE DE MÁQUINAS • NUVEM V5</div></div>
+<div><div class="logo">WM</div><div class="sub">CONTROLE DE MÁQUINAS • NUVEM V6</div></div>
 <div class="userbox"><div><div id="clock"></div><div id="syncStatus" class="sync"></div></div><span id="userEmail"></span><button id="logoutBtn" class="hidden" type="button">Sair</button></div>
 </header>
 <section id="authScreen" class="auth-wrap">
@@ -131,7 +131,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 <script>
 const K='wm_machine_control_v2';
 
-const SUPABASE_URL='https://mjcqjjlqhgyfvogldrql.supabase.co';
+const SUPABASE_URL='https://mjcqjjjqhgyfvogldrql.supabase.co';
 const SUPABASE_ANON_KEY='sb_publishable_e7mDyPX1uw9FSr2oOcVAfg_CgUhA7pM';
 
 const supa=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
@@ -173,7 +173,7 @@ async function login(){
   byId('authMsg').textContent='Entrando...';
   const {data,error}=await supa.auth.signInWithPassword({email,password});
   if(error){
-    byId('authMsg').textContent='Não foi possível entrar: '+error.message;
+    byId('authMsg').textContent='Não foi possível entrar: '+error.message+' | Projeto: '+SUPABASE_URL;
     return;
   }
   showLoggedIn(data.user);
