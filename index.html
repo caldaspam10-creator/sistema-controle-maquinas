@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>WM — Controle de Máquinas</title>
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="manifest" href="manifest.json">
+https://caldaspam10-creator.github.io/sistema-controle-maquinas/
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f6f8;color:#18212b}
 header{background:#111820;color:#fff;padding:16px 22px;display:flex;justify-content:space-between;align-items:center}
@@ -38,7 +41,6 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 .auth-msg{margin-top:12px;font-size:13px;color:#991b1b;min-height:18px;white-space:pre-wrap}
 .userbox{display:flex;align-items:center;gap:10px;font-size:12px}
 .userbox button{border:0;background:#eef1f4;padding:8px 10px;border-radius:8px;font-weight:700;cursor:pointer}
-.install-btn{border:0;background:#1d6cff!important;color:#fff;padding:8px 10px;border-radius:8px;font-weight:800;cursor:pointer}
 .sync{font-size:11px;opacity:.8}
 .hidden{display:none!important}
 .auth-link{border:0;background:transparent;color:#1d6cff;padding:10px 0;font-weight:700;cursor:pointer;text-decoration:underline}
@@ -48,26 +50,27 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<link rel="manifest" href="./manifest.webmanifest">
-<meta name="theme-color" content="#111820">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="WM Máquinas">
-<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="manifest" href="./manifest.webmanifest"><meta name="theme-color" content="#111820">
 <script>
-window.addEventListener('load',()=>{
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('Service Worker:',err));
-  }
-});
+(async()=>{
+  try{
+    if('serviceWorker' in navigator){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      for(const r of regs) await r.unregister();
+    }
+    if('caches' in window){
+      const keys=await caches.keys();
+      await Promise.all(keys.map(k=>caches.delete(k)));
+    }
+  }catch(e){ console.warn('Limpeza de cache:',e); }
+})();
 </script>
 
 </head>
 <body>
 <header>
 <div><div class="logo">WM</div><div class="sub">CONTROLE DE MÁQUINAS • NUVEM V7</div></div>
-<div class="userbox"><div><div id="clock"></div><div id="syncStatus" class="sync"></div></div><span id="userEmail"></span><button id="installAppBtn" class="install-btn hidden" type="button">Instalar app</button><button id="logoutBtn" class="hidden" type="button">Sair</button></div>
+<div class="userbox"><div><div id="clock"></div><div id="syncStatus" class="sync"></div></div><span id="userEmail"></span><button id="logoutBtn" class="hidden" type="button">Sair</button></div>
 </header>
 <section id="authScreen" class="auth-wrap">
   <div class="auth-card">
@@ -469,42 +472,6 @@ async function initAuth(){
     recoveryMode=false;
     showLoggedOut('Erro ao iniciar o login: '+(err?.message||err));
   }
-}
-
-
-let deferredInstallPrompt=null;
-const installAppBtn=byId('installAppBtn');
-
-function isStandaloneMode(){
-  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
-}
-
-window.addEventListener('beforeinstallprompt',event=>{
-  event.preventDefault();
-  deferredInstallPrompt=event;
-  if(installAppBtn && !isStandaloneMode()) installAppBtn.classList.remove('hidden');
-});
-
-window.addEventListener('appinstalled',()=>{
-  deferredInstallPrompt=null;
-  if(installAppBtn) installAppBtn.classList.add('hidden');
-});
-
-if(installAppBtn){
-  installAppBtn.addEventListener('click',async()=>{
-    if(isStandaloneMode()){
-      installAppBtn.classList.add('hidden');
-      return;
-    }
-    if(!deferredInstallPrompt){
-      alert('Se o botão de instalação ainda não apareceu no navegador, atualize a página uma vez e tente novamente. No Chrome, você também pode usar o menu ⋮ > Instalar aplicativo.');
-      return;
-    }
-    deferredInstallPrompt.prompt();
-    try{ await deferredInstallPrompt.userChoice; }catch(e){}
-    deferredInstallPrompt=null;
-    installAppBtn.classList.add('hidden');
-  });
 }
 
 initAuth();
