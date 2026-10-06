@@ -4,8 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>WM — Controle de Máquinas</title>
-<link rel="icon" type="image/png" href="logo.png">
-<link rel="manifest" href="manifest.json">
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f6f8;color:#18212b}
 header{background:#111820;color:#fff;padding:16px 22px;display:flex;justify-content:space-between;align-items:center}
@@ -25,7 +23,7 @@ button.primary{background:#1d6cff;color:#fff;border:0;padding:11px 15px;border-r
 button.secondary{background:#eef1f4;border:0;padding:11px 15px;border-radius:9px;font-weight:800;cursor:pointer;margin-top:13px}
 button.danger{background:#e5484d;color:#fff;border:0;padding:7px 10px;border-radius:7px;cursor:pointer}
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:10px;border-bottom:1px solid #edf0f2}th{color:#687385;font-size:11px;text-transform:uppercase}
-.badge{padding:5px 8px;border-radius:20px;font-size:11px;font-weight:800}.ok{background:#dcfce7;color:#166534}.busy{background:#fee2e2;color:#991b1b}
+.badge{padding:5px 8px;border-radius:20px;font-size:11px;font-weight:800}.ok{background:#dcfce7;color:#166534}.busy{background:#fee2e2;color:#991b1b}.warn{background:#fef3c7;color:#92400e}.info{background:#dbeafe;color:#1e40af}
 .empty{padding:20px;text-align:center;color:#777}
 .qrgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
 .qritem{text-align:center;border:1px solid #e3e7eb;border-radius:12px;padding:15px;background:#fff}
@@ -68,7 +66,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 </head>
 <body>
 <header>
-<div><div class="logo">WM</div><div class="sub">CONTROLE DE MÁQUINAS • NUVEM V7</div></div>
+<div><div class="logo">WM</div><div class="sub">CONTROLE DE MÁQUINAS • NUVEM V8 • MANUTENÇÃO</div></div>
 <div class="userbox"><div><div id="clock"></div><div id="syncStatus" class="sync"></div></div><span id="userEmail"></span><button id="logoutBtn" class="hidden" type="button">Sair</button></div>
 </header>
 <section id="authScreen" class="auth-wrap">
@@ -98,15 +96,17 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 </section>
 <nav id="appNav" class="hidden">
 <button data-page="dashboard">Dashboard</button><button data-page="machines">Máquinas</button><button data-page="operators">Operadores</button>
-<button data-page="exit">Registrar Saída</button><button data-page="return">Registrar Retorno</button><button data-page="history">Histórico</button><button data-page="qr">QR Codes</button>
+<button data-page="exit">Registrar Saída</button><button data-page="return">Registrar Retorno</button><button data-page="maintenance">Manutenção</button><button data-page="history">Histórico</button><button data-page="qr">QR Codes</button>
 </nav>
 <main id="appMain" class="hidden">
 <section id="dashboard" class="page active"><h2>Visão geral</h2><div class="cards">
 <div class="card">Máquinas cadastradas<div class="num" id="cMachines">0</div></div>
 <div class="card">Disponíveis<div class="num" id="cAvailable">0</div></div>
 <div class="card">Em uso<div class="num" id="cBusy">0</div></div>
+<div class="card">Em manutenção<div class="num" id="cMaintenance">0</div></div>
+<div class="card">Manutenções vencidas<div class="num" id="cDue">0</div></div>
 <div class="card">Saídas abertas<div class="num" id="cOpen">0</div></div>
-</div><div class="panel"><h2>Movimentações recentes</h2><div id="recent"></div></div></section>
+</div><div class="panel"><h2>⚠️ Alertas de manutenção</h2><div id="maintenanceAlerts"></div></div><div class="panel"><h2>Movimentações recentes</h2><div id="recent"></div></div></section>
 
 <section id="machines" class="page">
 <div class="panel"><h2>Cadastro de máquina</h2><div class="grid">
@@ -133,6 +133,24 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 
 <section id="return" class="page"><div class="panel"><h2>Registrar retorno</h2><div id="returnList"></div></div></section>
 
+
+<section id="maintenance" class="page">
+<div class="panel"><h2>🔧 Nova manutenção</h2><div class="grid">
+<div><label>Máquina</label><select id="mtMachine"></select></div>
+<div><label>Tipo de manutenção</label><select id="mtType"><option value="PREVENTIVA">Preventiva</option><option value="CORRETIVA">Corretiva</option><option value="REVISÃO">Revisão</option></select></div>
+<div><label>Data de entrada</label><input id="mtStart" type="datetime-local"></div>
+<div><label>Horímetro atual</label><input id="mtHour" type="number" min="0"></div>
+<div><label>Responsável / técnico</label><input id="mtResponsible" placeholder="Nome do responsável"></div>
+<div><label>Custo estimado (R$)</label><input id="mtCost" type="number" min="0" step="0.01" placeholder="0,00"></div>
+</div>
+<label>Problema / motivo da manutenção</label><textarea id="mtProblem" placeholder="Descreva o defeito, revisão necessária ou motivo da manutenção"></textarea>
+<label>Peças previstas / observações</label><textarea id="mtParts" placeholder="Peças, materiais ou observações iniciais"></textarea>
+<button class="primary" onclick="startMaintenance()">INICIAR MANUTENÇÃO</button></div>
+
+<div class="panel"><h2>🛠️ Em manutenção</h2><div id="maintenanceOpen"></div></div>
+<div class="panel"><h2>📋 Histórico de manutenção</h2><div id="maintenanceHistory"></div></div>
+</section>
+
 <section id="history" class="page"><div class="panel"><h2>Histórico de movimentações</h2><div id="historyTable"></div></div></section>
 
 <section id="qr" class="page">
@@ -156,7 +174,15 @@ const supa=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{
 });
 let currentUser=null;
 let recoveryMode=(new URLSearchParams(location.hash.replace(/^#/,''))).get('type')==='recovery'||(new URLSearchParams(location.search)).get('type')==='recovery';
-let db=JSON.parse(localStorage.getItem(K)||'{"machines":[],"operators":[],"moves":[]}');
+let db=JSON.parse(localStorage.getItem(K)||'{"machines":[],"operators":[],"moves":[],"maintenance":[]}');
+function normalizeDb(){
+  if(!db||typeof db!=='object')db={};
+  if(!Array.isArray(db.machines))db.machines=[];
+  if(!Array.isArray(db.operators))db.operators=[];
+  if(!Array.isArray(db.moves))db.moves=[];
+  if(!Array.isArray(db.maintenance))db.maintenance=[];
+}
+normalizeDb();
 
 function byId(id){return document.getElementById(id)}
 function setSync(text){const el=byId('syncStatus');if(el)el.textContent=text||''}
@@ -286,6 +312,7 @@ async function loadCloudState(){
   }
   if(data?.data){
     db=data.data;
+    normalizeDb();
     localStorage.setItem(K,JSON.stringify(db));
   }else{
     const {error:upErr}=await supa.from('wm_state').upsert({
@@ -304,6 +331,7 @@ async function loadCloudState(){
 }
 
 async function save(){
+  normalizeDb();
   localStorage.setItem(K,JSON.stringify(db));
   render();
   if(!currentUser)return;
@@ -324,6 +352,8 @@ async function save(){
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function fmt(d){return d?new Date(d).toLocaleString('pt-BR'):''}
 function machineCode(m){return 'WM-'+(m.pat||m.id.slice(0,8)).replace(/[^A-Za-z0-9]/g,'').toUpperCase()}
+function money(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+function machineBadgeClass(status){return status==='DISPONÍVEL'?'ok':status==='EM MANUTENÇÃO'?'warn':'busy'}
 function go(page){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));document.getElementById(page).classList.add('active');document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===page));render()}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.page));
 
@@ -352,7 +382,48 @@ function registerReturn(id){
  let fuel=+prompt('Combustível no retorno (%)',mv.fuelOut);if(!Number.isFinite(fuel))return;
  mv.returnHour=h;mv.fuelIn=fuel;mv.dateIn=new Date().toISOString();mv.status='RETORNADA';mv.hours=h-mv.outHour;mach.hour=h;mach.status='DISPONÍVEL';save()
 }
-function removeMachine(id){if(db.moves.some(m=>m.machineId===id&&m.status==='EM USO'))return alert('Máquina em uso.');if(confirm('Excluir esta máquina?')){db.machines=db.machines.filter(x=>x.id!==id);save()}}
+function startMaintenance(){
+ let mach=db.machines.find(x=>x.id===mtMachine.value);
+ if(!mach)return alert('Selecione uma máquina.');
+ if(mach.status!=='DISPONÍVEL')return alert('A máquina precisa estar disponível para iniciar manutenção.');
+ let h=mtHour.value===''?mach.hour:+mtHour.value;
+ if(!Number.isFinite(h)||h<mach.hour)return alert('O horímetro não pode ser menor que o atual.');
+ let problem=mtProblem.value.trim();if(!problem)return alert('Informe o problema ou motivo da manutenção.');
+ db.maintenance.push({
+   id:crypto.randomUUID(),machineId:mach.id,type:mtType.value,problem,
+   service:'',startDate:mtStart.value||new Date().toISOString(),endDate:null,
+   responsible:mtResponsible.value.trim(),parts:mtParts.value.trim(),
+   cost:+mtCost.value||0,startHour:h,endHour:null,nextDate:null,nextHour:null,
+   status:'EM MANUTENÇÃO'
+ });
+ mach.hour=h;mach.status='EM MANUTENÇÃO';
+ mtProblem.value=mtParts.value=mtResponsible.value=mtCost.value='';
+ save();alert('Manutenção iniciada. A máquina ficou bloqueada para saída.');
+}
+function completeMaintenance(id){
+ let mt=db.maintenance.find(x=>x.id===id),mach=db.machines.find(x=>x.id===mt?.machineId);
+ if(!mt||!mach)return alert('Manutenção não encontrada.');
+ let service=prompt('Serviço realizado / solução:',mt.service||'');if(service===null)return;
+ service=service.trim();if(!service)return alert('Informe o serviço realizado.');
+ let parts=prompt('Peças trocadas / utilizadas:',mt.parts||'');if(parts===null)return;
+ let costText=prompt('Custo final da manutenção (R$):',String(mt.cost||0));if(costText===null)return;
+ let cost=Number(String(costText).replace(',','.'));if(!Number.isFinite(cost)||cost<0)return alert('Custo inválido.');
+ let hourText=prompt('Horímetro na conclusão:',String(mach.hour));if(hourText===null)return;
+ let endHour=Number(String(hourText).replace(',','.'));if(!Number.isFinite(endHour)||endHour<mach.hour)return alert('Horímetro inválido.');
+ let nextDate=prompt('Próxima manutenção por data (AAAA-MM-DD). Deixe vazio se não houver:',mt.nextDate||'');if(nextDate===null)return;
+ let nextHourText=prompt('Próxima manutenção por horímetro. Deixe vazio se não houver:',mt.nextHour??'');if(nextHourText===null)return;
+ let nextHour=nextHourText.trim()===''?null:Number(String(nextHourText).replace(',','.'));
+ if(nextHour!==null&&(!Number.isFinite(nextHour)||nextHour<endHour))return alert('O próximo horímetro precisa ser igual ou maior que o atual.');
+ mt.service=service;mt.parts=parts.trim();mt.cost=cost;mt.endHour=endHour;mt.endDate=new Date().toISOString();mt.nextDate=nextDate.trim()||null;mt.nextHour=nextHour;mt.status='CONCLUÍDA';
+ mach.hour=endHour;mach.status='DISPONÍVEL';save();alert('Manutenção concluída. A máquina está disponível novamente.');
+}
+function cancelMaintenance(id){
+ let mt=db.maintenance.find(x=>x.id===id),mach=db.machines.find(x=>x.id===mt?.machineId);
+ if(!mt||!mach)return;
+ if(!confirm('Cancelar esta manutenção e liberar a máquina?'))return;
+ mt.status='CANCELADA';mt.endDate=new Date().toISOString();mach.status='DISPONÍVEL';save();
+}
+function removeMachine(id){let mach=db.machines.find(x=>x.id===id);if(mach?.status==='EM USO')return alert('Máquina em uso.');if(mach?.status==='EM MANUTENÇÃO')return alert('Máquina em manutenção. Conclua ou cancele a manutenção antes de excluir.');if(confirm('Excluir esta máquina?')){db.machines=db.machines.filter(x=>x.id!==id);save()}}
 
 function scanKey(ev){
  if(ev.key!=='Enter')return;ev.preventDefault();
@@ -362,6 +433,9 @@ function scanKey(ev){
  scanInput.value='';
  if(m.status==='DISPONÍVEL'){
    go('exit');setTimeout(()=>{eMachine.value=m.id;eHour.value=m.hour},50);
+ }else if(m.status==='EM MANUTENÇÃO'){
+   go('maintenance');
+   setTimeout(()=>alert('Máquina '+m.name+' está em manutenção e não pode registrar saída.'),50);
  }else{
    go('return');
    setTimeout(()=>{let mv=db.moves.find(x=>x.machineId===m.id&&x.status==='EM USO');if(mv)alert('Máquina '+m.name+' está em uso. Selecione o retorno na lista.')},50);
@@ -399,11 +473,21 @@ function render(){
  cMachines.textContent=db.machines.length;
  cAvailable.textContent=db.machines.filter(x=>x.status==='DISPONÍVEL').length;
  cBusy.textContent=db.machines.filter(x=>x.status==='EM USO').length;
+ cMaintenance.textContent=db.machines.filter(x=>x.status==='EM MANUTENÇÃO').length;
+ let today=new Date();today.setHours(0,0,0,0);
+ let dueMaintenance=db.maintenance.filter(mt=>{if(mt.status!=='CONCLUÍDA')return false;let mach=db.machines.find(x=>x.id===mt.machineId);let dueDate=mt.nextDate&&new Date(mt.nextDate+'T00:00:00')<=today;let dueHour=mt.nextHour!=null&&mach&&Number(mach.hour)>=Number(mt.nextHour);return !!(dueDate||dueHour)});
+ cDue.textContent=dueMaintenance.length;
+ maintenanceAlerts.innerHTML=dueMaintenance.length?dueMaintenance.map(mt=>{let a=db.machines.find(x=>x.id===mt.machineId);let why=[];if(mt.nextDate&&new Date(mt.nextDate+'T00:00:00')<=today)why.push('data '+mt.nextDate);if(mt.nextHour!=null&&a&&Number(a.hour)>=Number(mt.nextHour))why.push('horímetro '+mt.nextHour+' h');return '<p><b>'+esc(a?.name||'Máquina')+'</b> — manutenção vencida por '+esc(why.join(' e '))+' <span class="badge busy">VENCIDA</span></p>'}).join(''):'<div class="empty">Nenhuma manutenção vencida.</div>';
  cOpen.textContent=db.moves.filter(x=>x.status==='EM USO').length;
- machineTable.innerHTML=db.machines.length?'<table><tr><th>Máquina</th><th>Patrimônio</th><th>Modelo</th><th>Horímetro</th><th>Status</th><th></th></tr>'+db.machines.map(m=>'<tr><td>'+esc(m.name)+'</td><td>'+esc(m.pat)+'</td><td>'+esc(m.model)+'</td><td>'+m.hour+' h</td><td><span class="badge '+(m.status==='DISPONÍVEL'?'ok':'busy')+'">'+m.status+'</span></td><td><button class="danger" onclick="removeMachine(\''+m.id+'\')">Excluir</button></td></tr>').join('')+'</table>':'<div class="empty">Nenhuma máquina cadastrada.</div>';
+ machineTable.innerHTML=db.machines.length?'<table><tr><th>Máquina</th><th>Patrimônio</th><th>Modelo</th><th>Horímetro</th><th>Status</th><th></th></tr>'+db.machines.map(m=>'<tr><td>'+esc(m.name)+'</td><td>'+esc(m.pat)+'</td><td>'+esc(m.model)+'</td><td>'+m.hour+' h</td><td><span class="badge '+machineBadgeClass(m.status)+'">'+m.status+'</span></td><td><button class="danger" onclick="removeMachine(\''+m.id+'\')">Excluir</button></td></tr>').join('')+'</table>':'<div class="empty">Nenhuma máquina cadastrada.</div>';
  operatorTable.innerHTML=db.operators.length?'<table><tr><th>Nome</th><th>Matrícula</th></tr>'+db.operators.map(o=>'<tr><td>'+esc(o.name)+'</td><td>'+esc(o.mat)+'</td></tr>').join('')+'</table>':'<div class="empty">Nenhum operador cadastrado.</div>';
  eMachine.innerHTML='<option value="">Selecione</option>'+db.machines.filter(m=>m.status==='DISPONÍVEL').map(m=>'<option value="'+m.id+'">'+esc(m.name)+' — '+esc(m.pat)+'</option>').join('');
  eOperator.innerHTML='<option value="">Selecione</option>'+db.operators.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');
+ mtMachine.innerHTML='<option value="">Selecione</option>'+db.machines.filter(m=>m.status==='DISPONÍVEL').map(m=>'<option value="'+m.id+'">'+esc(m.name)+' — '+esc(m.pat)+'</option>').join('');
+ let mtOpen=[...db.maintenance].filter(x=>x.status==='EM MANUTENÇÃO').sort((a,b)=>new Date(b.startDate)-new Date(a.startDate));
+ maintenanceOpen.innerHTML=mtOpen.length?'<table><tr><th>Máquina</th><th>Tipo</th><th>Entrada</th><th>Problema</th><th>Responsável</th><th>Custo</th><th></th></tr>'+mtOpen.map(mt=>{let a=db.machines.find(x=>x.id===mt.machineId);return '<tr><td>'+esc(a?.name)+'</td><td><span class="badge warn">'+esc(mt.type)+'</span></td><td>'+fmt(mt.startDate)+'</td><td>'+esc(mt.problem)+'</td><td>'+esc(mt.responsible||'—')+'</td><td>'+money(mt.cost)+'</td><td><button class="primary" onclick="completeMaintenance(\''+mt.id+'\')">Concluir</button> <button class="danger" onclick="cancelMaintenance(\''+mt.id+'\')">Cancelar</button></td></tr>'}).join('')+'</table>':'<div class="empty">Nenhuma máquina em manutenção.</div>';
+ let mtRows=[...db.maintenance].sort((a,b)=>new Date(b.startDate)-new Date(a.startDate));
+ maintenanceHistory.innerHTML=mtRows.length?'<table><tr><th>Máquina</th><th>Tipo</th><th>Entrada</th><th>Conclusão</th><th>Serviço / problema</th><th>Peças</th><th>Custo</th><th>Próxima</th><th>Status</th></tr>'+mtRows.map(mt=>{let a=db.machines.find(x=>x.id===mt.machineId);let next=[];if(mt.nextDate)next.push(mt.nextDate);if(mt.nextHour!=null)next.push(mt.nextHour+' h');return '<tr><td>'+esc(a?.name)+'</td><td>'+esc(mt.type)+'</td><td>'+fmt(mt.startDate)+'</td><td>'+(mt.endDate?fmt(mt.endDate):'—')+'</td><td>'+esc(mt.service||mt.problem)+'</td><td>'+esc(mt.parts||'—')+'</td><td>'+money(mt.cost)+'</td><td>'+esc(next.join(' / ')||'—')+'</td><td><span class="badge '+(mt.status==='CONCLUÍDA'?'ok':mt.status==='CANCELADA'?'busy':'warn')+'">'+esc(mt.status)+'</span></td></tr>'}).join('')+'</table>':'<div class="empty">Nenhuma manutenção registrada.</div>';
  let open=db.moves.filter(m=>m.status==='EM USO');
  returnList.innerHTML=open.length?'<table><tr><th>Máquina</th><th>Operador</th><th>Destino</th><th>Saída</th><th>Horímetro</th><th></th></tr>'+open.map(m=>{let a=db.machines.find(x=>x.id===m.machineId),o=db.operators.find(x=>x.id===m.operatorId);return '<tr><td>'+esc(a?.name)+'</td><td>'+esc(o?.name)+'</td><td>'+esc(m.dest)+'</td><td>'+fmt(m.dateOut)+'</td><td>'+m.outHour+' h</td><td><button class="primary" onclick="registerReturn(\''+m.id+'\')">Registrar retorno</button></td></tr>'}).join('')+'</table>':'<div class="empty">Nenhuma máquina em uso.</div>';
  let rows=[...db.moves].sort((a,b)=>new Date(b.dateOut)-new Date(a.dateOut));
@@ -418,6 +502,8 @@ function renderQR(){
 }
 setInterval(()=>byId('clock').textContent=new Date().toLocaleString('pt-BR'),1000);
 eDate.value=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+mtStart.value=eDate.value;
+mtMachine.addEventListener('change',()=>{let m=db.machines.find(x=>x.id===mtMachine.value);mtHour.value=m?m.hour:''});
 render();
 
 byId('loginBtn').addEventListener('click',login);
